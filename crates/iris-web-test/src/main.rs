@@ -1,22 +1,27 @@
-use iris_web_core::{router::{router::{Router, PathResolver}, Method}, server::{http_server::HttpServer, request::Request}, pipeline::{pipeline::RequestPipeline, controller::Data}};
+use iris_web_core::prelude::*;
 
-fn pipeline_test(data: Data<HelloWorld>) -> String {
-    data.test.clone()
+fn test() -> String {
+    "Hello World!".to_string()
 }
 
-fn test(req: &Request) -> String {
-    format!("Request path: {:?}", req.path)
+fn router_test() -> String {
+    "Hello Router!".to_string()
 }
 
-#[derive(Debug)]
-struct HelloWorld {
-    test: String,
+struct TestRouter;
+
+impl Module for TestRouter {
+    fn build(self, router: &mut Router) -> () {
+        router
+            .add_route("/", Method::GET, router_test)
+            .add_route("/test", Method::GET, || "Hello Test!".to_string());
+    }
 }
 
 fn main() {
     HttpServer::new()
-        .add_data(HelloWorld { test: "Hello World!".to_string() })
-        .add_route("/", Method::GET, pipeline_test)
-        .add_route("/:test", Method::GET, test)
+        .add_route("/", Method::GET, test)
+        .add_module("/:test", TestRouter)
+        .dump_routes()
         .listen(("localhost", 8080));
 }

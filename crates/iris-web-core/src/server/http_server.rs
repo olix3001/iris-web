@@ -1,6 +1,6 @@
 use std::{net::TcpListener, sync::{Arc, RwLock}};
 
-use crate::{router::{router::Router, Method}, utils::{thread_pool::ThreadPool, data_container::DataContainer}, server::{request::Request, response::Response}, pipeline::{pipeline::{IntoPipeline, RequestPipeline}, controller::{Controller, IntoController}}};
+use crate::{router::{router::{Router, Module}, Method}, utils::{thread_pool::ThreadPool, data_container::DataContainer}, server::{request::Request, response::Response}, pipeline::{pipeline::{IntoPipeline, RequestPipeline}, controller::{Controller, IntoController}}};
 
 pub type BindAddress<'a> = (&'a str, u16);
 
@@ -25,6 +25,11 @@ impl HttpServer {
         }
     }
 
+    pub fn dump_routes(&mut self) -> &mut Self {
+        println!("{:#?}", self.router.read().unwrap());
+        self
+    }
+
     /// Gets the router for the server (this should not be used by the user).
     pub fn get_router_write(&self) -> std::sync::RwLockWriteGuard<Router> {
         self.router.write().unwrap()
@@ -35,7 +40,16 @@ impl HttpServer {
     pub fn add_route<T>(&mut self, path: &str, method: Method, controller: impl IntoPipeline<T>) -> &mut Self {
         {
             let mut router_write = self.router.write().unwrap();
-            router_write.add_pipeline(path, method, controller.into_pipeline());
+            router_write.add_route(path, method, controller);
+        }
+        self
+    }
+
+    /// Adds new module to the server.
+    pub fn add_module(&mut self, path: &str, module: impl Module) -> &mut Self {
+        {
+            let mut router_write = self.router.write().unwrap();
+            router_write.add_module(path, module);
         }
         self
     }

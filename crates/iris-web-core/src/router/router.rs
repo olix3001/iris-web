@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Mutex};
 
-use crate::{server::{request::Request, response::{Response, ResponseStatus}}, pipeline::pipeline::RequestPipeline, utils::data_container::DataContainer};
+use crate::{server::{request::Request, response::{Response, ResponseStatus}}, pipeline::pipeline::{RequestPipeline, IntoPipeline}, utils::data_container::DataContainer};
 
 use super::Method;
 
@@ -25,7 +25,30 @@ impl Router {
         }
     }
 
-    pub fn add_pipeline(&mut self, path: &str, method: Method, pipeline: RequestPipeline) {
+    /// Adds a new route to the router. This is a convenience method for adding a route to the router.
+    pub fn add_route<T>(&mut self, path: &str, method: Method, controller: impl IntoPipeline<T>) -> &mut Self {
+        self.add_pipeline(path, method, controller.into_pipeline());
+        self
+    }
+
+    /// Adds new module to the router. This is a convenience method for adding a module to the router.
+    pub fn add_module(&mut self, path: &str, module: impl Module) -> &mut Self {
+        let mut router = Router::new();
+
+        module.build(&mut router);
+
+        self.insert(path, PathResolver::Router(Box::new(router)));
+
+        self
+    }
+
+    /// Adds data to the scoped data container.
+    pub fn add_data<T: Send + Sync + 'static>(&mut self, value: T) -> &mut Self {
+        self.data.add(value);
+        self
+    }
+
+    pub(crate) fn add_pipeline(&mut self, path: &str, method: Method, pipeline: RequestPipeline) {
         // Get the resolver or create a new one.
         let resolver = match self.routes.get_mut(path) {
             Some(resolver) => resolver,
@@ -50,7 +73,7 @@ impl Router {
 
     /// Inserts a new route into the router creating sub-routers as needed.
     /// :id can be used like a placeholder to match any path segment.
-    pub fn insert(&mut self, path: &str, resolver: PathResolver) {
+    pub(crate) fn insert(&mut self, path: &str, resolver: PathResolver) {
         // Special case for root path.
         if path.trim() == "/" {
             self.routes.insert("".to_string(), resolver);
@@ -137,7 +160,7 @@ impl Router {
     fn resolve_internal(&self, path: &str, current_data: DataContainer) -> Option<(&PathResolver, DataContainer)> {
         let mut segments = path.split('/').filter(|s| !s.is_empty());
 
-        let mut data = current_data.combine(&self.data);
+        let data = current_data.combine(&self.data);
 
         // Get the first segment of the path.
         let segment = match segments.next() {
@@ -184,7 +207,7 @@ impl std::fmt::Debug for Router {
 pub enum PathResolver {
     Router(Box<Router>),
     Placeholder(String),
-    Pipeline(HashMap<String, Mutex<RequestPipeline>>)
+    Pipeline(HashMap<String, Mutex<RequestPipeline>>),
 }
 
 impl PartialEq for PathResolver {
@@ -220,6 +243,10 @@ impl PathResolver {
             _ => Response::new().with_status(ResponseStatus::InternalServerError),
         }
     }
+}
+
+pub trait Module {
+    fn build(self, router: &mut Router) -> ();
 }
 
 #[cfg(test)]
