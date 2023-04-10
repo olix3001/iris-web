@@ -51,7 +51,7 @@ impl Router {
 
     pub(crate) fn add_pipeline(&mut self, path: &str, method: Method, pipeline: RequestPipeline) {
         // Get the resolver or create a new one.
-        let resolver = match self.routes.get_mut(path) {
+        let resolver = match self.resolve_internal_mut(path, DataContainer::default()) {
             Some(resolver) => resolver,
             None => {
                 let mut pipeline_map = HashMap::new();
@@ -63,7 +63,7 @@ impl Router {
 
         // Add the pipeline to the resolver.
         #[allow(clippy::single_match)]
-        match resolver {
+        match resolver.0 {
             PathResolver::Pipeline(pipelines) => {
                 pipelines.insert(method.as_str(), Mutex::new(pipeline));
             }
@@ -182,6 +182,38 @@ impl Router {
                 Some(_) => {
                     if rest.is_empty() {
                         self.fallback.as_ref().map(|r| (r, data))
+                    } else {
+                        None
+                    }
+                }
+                None => None,
+            }
+        }
+    }
+    
+    #[doc(hidden)]
+    fn resolve_internal_mut(&mut self, path: &str, current_data: DataContainer) -> Option<(&mut PathResolver, DataContainer)> {
+        let mut segments = path.split('/').filter(|s| !s.is_empty());
+
+        let data = current_data.combine(&self.data);
+
+        // Get the first segment of the path.
+        let segment = segments.next().unwrap_or("");
+
+        // Get the rest of the path.
+        let rest = segments.collect::<Vec<_>>().join("/");
+
+        if let Some(resolver) = self.routes.get_mut(segment) {
+            match resolver {
+                PathResolver::Router(ref mut router) => router.resolve_internal_mut(&rest, data),
+                _ => Some((resolver, data)),
+            }
+        } else {
+            match self.fallback {
+                Some(PathResolver::Router(ref mut router)) => router.resolve_internal_mut(&rest, data),
+                Some(_) => {
+                    if rest.is_empty() {
+                        self.fallback.as_mut().map(|r| (r, data))
                     } else {
                         None
                     }
