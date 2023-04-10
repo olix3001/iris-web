@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::server::{request::Request, response::{Response, ResponseStatus}};
+
 /// A router is a collection of routes that can be used to match a path.
 pub struct Router {
     /// The routes that are registered with this router.
@@ -20,6 +22,12 @@ impl Router {
     /// Inserts a new route into the router creating sub-routers as needed.
     /// :id can be used like a placeholder to match any path segment.
     pub fn insert(&mut self, path: &str, resolver: PathResolver) {
+        // Special case for root path.
+        if path == "/" {
+            self.routes.insert("".to_string(), resolver);
+            return;
+        }
+
         let mut segments = path.split('/').filter(|s| !s.is_empty());
 
         // Get the first segment of the path.
@@ -130,6 +138,7 @@ impl std::fmt::Debug for Router {
 }
 
 #[derive(Debug)]
+/// Enum that represents all possible ways to resolve a path.
 pub enum PathResolver {
     Router(Box<Router>),
     Placeholder(String),
@@ -144,6 +153,16 @@ impl PartialEq for PathResolver {
     }
 }
 
+impl PathResolver {
+    /// Returns new response based on the request
+    pub fn resolve(&self, _: &Request) -> Response {
+        match self {
+            PathResolver::Placeholder(data) => Response::new().with_status(ResponseStatus::Ok).with_body(data.clone().into_bytes()),
+            _ => Response::new().with_status(ResponseStatus::InternalServerError),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -152,12 +171,14 @@ mod test {
     fn test_router() {
         let mut router = Router::new();
 
+        router.insert("/", PathResolver::Placeholder("Root".to_string()));
         router.insert("/hello/world", PathResolver::Placeholder("Hello World".to_string()));
         router.insert("/hello/world/test", PathResolver::Placeholder("Hello World test".to_string()));
 
         router.insert("/hello/:name", PathResolver::Placeholder("Hello Name".to_string()));
         router.insert("/hello/:name/:age", PathResolver::Placeholder("Hello Name Age".to_string()));
 
+        assert_eq!(router.resolve("/").unwrap(), &PathResolver::Placeholder("Root".to_string()));
         assert_eq!(router.resolve("/hello/world").unwrap(), &PathResolver::Placeholder("Hello World".to_string()));
         assert_eq!(router.resolve("/hello/world/test").unwrap(), &PathResolver::Placeholder("Hello World test".to_string()));
         assert_eq!(router.resolve("/hello/John").unwrap(), &PathResolver::Placeholder("Hello Name".to_string()));
