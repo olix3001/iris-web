@@ -2,7 +2,7 @@ use std::{sync::Arc, any::TypeId, fmt::Debug};
 
 use crate::server::{response::{Response}, request::Request};
 
-use super::request_pipeline::PipelineData;
+use super::{request_pipeline::{PipelineData, BoxedController, IntoPipeline, RequestPipeline}, middleware::{BoxedMiddlewareHandler, IntoMiddleware, MiddlewareHandler}};
 
 /// A controller is a function that takes a request and returns a response.
 pub trait Controller {
@@ -35,6 +35,15 @@ pub struct Data<'a, T: 'static> {
     #[allow(dead_code)]
     pub data: Arc<T>,
     marker: std::marker::PhantomData<&'a T>,
+}
+
+impl<'a, T> Clone for Data<'a, T> {
+    fn clone(&self) -> Self {
+        Self {
+            data: self.data.clone(),
+            marker: std::marker::PhantomData,
+        }
+    }
 }
 
 impl<'a, T: 'static> Data<'a, T> {
@@ -79,5 +88,39 @@ impl ControllerParam for &Request {
 
     fn fetch<'r>(pipeline: &'r PipelineData) -> Option<Self::Item<'r>> {
         Some(&pipeline.request)
+    }
+}
+
+pub trait ConfigurableController<T> {
+    fn with_middleware<I, M: MiddlewareHandler + Send + Sync + 'static>(self, middleware: impl IntoMiddleware<I, Middleware = M>) -> ConfiguredController;
+}
+
+impl<T, I, C: Controller + Sync + Send + 'static> ConfigurableController<(I, C)> for T where T: IntoController<I, Controller = C> {
+    fn with_middleware<I0, M: MiddlewareHandler + Send + Sync + 'static>(self, middleware: impl IntoMiddleware<I0, Middleware = M>) -> ConfiguredController {
+        ConfiguredController {
+            controller: Box::new(self.into_controller()),
+            middlewares: vec![Box::new(middleware.into_middleware())],
+        }
+    }
+}
+
+pub struct ConfiguredController {
+    pub controller: BoxedController,
+    pub middlewares: Vec<BoxedMiddlewareHandler>,
+}
+
+impl ConfiguredController {
+    pub fn with_middleware<I, M: MiddlewareHandler + Send + Sync + 'static>(mut self, middleware: impl IntoMiddleware<I, Middleware = M>) -> ConfiguredController {
+        self.middlewares.push(Box::new(middleware.into_middleware()));
+        self
+    }
+}
+
+impl IntoPipeline<ConfiguredController> for ConfiguredController {
+    fn into_pipeline(self) -> RequestPipeline {
+        RequestPipeline {
+            controller: self.controller,
+            middlewares: self.middlewares,
+        }
     }
 }

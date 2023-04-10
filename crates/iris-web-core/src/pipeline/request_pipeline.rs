@@ -1,21 +1,20 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use crate::{server::{request::Request, response::Response}, utils::data_container::DataContainer};
 
-use super::controller::{Controller, IntoController};
+use super::{controller::{Controller, IntoController}, commands::CommandQueue, middleware::BoxedMiddlewareHandler};
 
 pub(crate) type BoxedController = Box<dyn Controller + Send + Sync>;
 
 pub struct RequestPipeline {
-    // pub(crate) middlewares: Vec<Box<dyn Middleware>>,
+    pub(crate) middlewares: Vec<BoxedMiddlewareHandler>,
     pub(crate) controller: BoxedController,
 }
 
 impl Debug for RequestPipeline {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RequestPipeline")
-            // .field("middlewares", &self.middlewares)
-            // .field("controller", &self.controller)
+            .field("middleware count", &self.middlewares.len())
             .finish()
     }
 }
@@ -23,7 +22,7 @@ impl Debug for RequestPipeline {
 impl RequestPipeline {
     pub fn new(controller: BoxedController) -> Self {
         Self {
-            // middlewares: vec![],
+            middlewares: Vec::new(),
             controller,
         }
     }
@@ -33,14 +32,22 @@ impl RequestPipeline {
     }
 
     pub fn handle(&mut self, request: Request, data: DataContainer) -> Response {
-        let pipeline = PipelineData::new(request, data);
+        let mut pipeline = PipelineData::new(request, data);
 
-        self.controller.handle(&pipeline)
+        for middleware in &mut self.middlewares {
+            middleware.handle(&mut pipeline);
+
+            // Execute all commands in the queue
+            pipeline.command_queue.clone().execute(&mut pipeline);
+        }
+
+        self.controller.handle(&pipeline)   
     }
 }
 
 pub struct PipelineData {
     pub request: Request,
+    pub(crate) command_queue: Arc<CommandQueue>,
     
     pub(crate) data: DataContainer,
 }
@@ -49,8 +56,17 @@ impl PipelineData {
     pub fn new(request: Request, initial_data: DataContainer) -> Self {
         Self {
             request,
+            command_queue: Arc::new(CommandQueue::new()),
             data: initial_data,
         }
+    }
+
+    pub fn get<T: Send + Sync + 'static>(&self) -> Option<Arc<T>> {
+        self.data.get::<T>()
+    }
+
+    pub fn add_data<T: Send + Sync + 'static>(&mut self, data: T) {
+        self.data.add(data);
     }
 }
 
