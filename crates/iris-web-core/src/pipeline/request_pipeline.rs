@@ -41,7 +41,7 @@ impl RequestPipeline {
             pipeline.command_queue.clone().execute(&mut pipeline);
         }
 
-        self.controller.handle(&pipeline)   
+        self.controller.handle(&mut pipeline)   
     }
 }
 

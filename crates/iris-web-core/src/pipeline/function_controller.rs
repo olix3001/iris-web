@@ -30,9 +30,9 @@ macro_rules! impl_controller {
             where
                 for<'a, 'b> &'a mut F:
                     FnMut( $($params),* ) -> R +
-                    FnMut( $(<$params as ControllerParam>::Item<'b>),* ) -> R
+                    FnMut( $(<$params as ControllerParam>::Item<'b>),* ) -> R,
         {
-            fn handle(&mut self, pipeline: &PipelineData) -> Response {
+            fn handle(&mut self, pipeline: &mut PipelineData) -> Response {
                 // Without this rustc complains without reason
                 fn call_inner<R: IntoResponse, $($params),*>(
                     mut f: impl FnMut($($params),*) -> R,

@@ -6,12 +6,12 @@ use super::{request_pipeline::{PipelineData, BoxedController, IntoPipeline, Requ
 
 /// A controller is a function that takes a request and returns a response.
 pub trait Controller {
-    fn handle(&mut self, pipeline: &PipelineData) -> Response;
+    fn handle(&mut self, pipeline: &mut PipelineData) -> Response;
 }
 
 /// Parameter which can be used in a controller.
-pub trait ControllerParam {
-    type Item<'new>;
+pub trait ControllerParam: Clone {
+    type Item<'new> where Self: Clone;
 
     fn fetch<'r>(pipeline: &'r PipelineData) -> Option<Self::Item<'r>>;
 }

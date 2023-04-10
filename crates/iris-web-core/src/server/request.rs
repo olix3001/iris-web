@@ -67,6 +67,7 @@ impl Request {
         request.body = body;
 
         // Read the body from the buf_iter
+        #[cfg(debug_assertions)]
         println!("{request:#?}");
 
         request.stream = Some(Arc::new(Mutex::new(stream)));
