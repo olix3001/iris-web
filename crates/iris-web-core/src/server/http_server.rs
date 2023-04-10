@@ -1,6 +1,6 @@
 use std::{net::TcpListener, sync::{Arc, RwLock}};
 
-use crate::{router::{router::Router, Method}, utils::thread_pool::ThreadPool, server::{request::Request, response::Response}, pipeline::{pipeline::{IntoPipeline, RequestPipeline}, controller::{Controller, IntoController}}};
+use crate::{router::{router::Router, Method}, utils::{thread_pool::ThreadPool, data_container::DataContainer}, server::{request::Request, response::Response}, pipeline::{pipeline::{IntoPipeline, RequestPipeline}, controller::{Controller, IntoController}}};
 
 pub type BindAddress<'a> = (&'a str, u16);
 
@@ -40,6 +40,12 @@ impl HttpServer {
         self
     }
 
+    /// Adds data to the global data container.
+    pub fn add_data<T: Send + Sync + 'static>(&mut self, value: T) -> &mut Self {
+        self.router.write().unwrap().data.add(value);
+        self
+    }
+
     /// Starts listening for incoming connections on the specified address.
     pub fn listen(&mut self, address: BindAddress) {
         let listener = TcpListener::bind(address).unwrap();
@@ -63,9 +69,11 @@ impl HttpServer {
                         let path_resolver = router_read.resolve(&request.path);
 
                         match path_resolver {
-                            Some(path_resolver) => {
+                            Some((path_resolver, path_data)) => {
                                 println!("Resolver: {:?}", path_resolver);
-                                path_resolver.resolve(&request).send_response(&request).unwrap()
+                                println!("Path data: {:?}", path_data);
+
+                                path_resolver.resolve(&request, path_data).send_response(&request).unwrap();
                             }
                             None => {
                                 println!("No path resolver found for path: {}", request.path);

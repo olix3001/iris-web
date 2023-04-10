@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Mutex};
 
-use crate::{server::{request::Request, response::{Response, ResponseStatus}}, pipeline::pipeline::RequestPipeline};
+use crate::{server::{request::Request, response::{Response, ResponseStatus}}, pipeline::pipeline::RequestPipeline, utils::data_container::DataContainer};
 
 use super::Method;
 
@@ -10,6 +10,9 @@ pub struct Router {
     pub(crate) routes: HashMap<String, PathResolver>,
     /// The fallback route that is used when no other route matches.
     pub(crate) fallback: Option<PathResolver>,
+
+    /// Data that is shared between all routes in this router.
+    pub(crate) data: DataContainer,
 }
 
 impl Router {
@@ -18,6 +21,7 @@ impl Router {
         Self {
             routes: HashMap::new(),
             fallback: None,
+            data: DataContainer::default(),
         }
     }
 
@@ -125,8 +129,15 @@ impl Router {
 
     /// Finds a route that matches the given path and returns the resolver.
     /// :id can be used like a placeholder to match any path segment.
-    pub fn resolve(&self, path: &str) -> Option<&PathResolver> {
+    pub fn resolve(&self, path: &str) -> Option<(&PathResolver, DataContainer)> {
+        self.resolve_internal(path, DataContainer::default())
+    } 
+    
+    #[doc(hidden)]
+    fn resolve_internal(&self, path: &str, current_data: DataContainer) -> Option<(&PathResolver, DataContainer)> {
         let mut segments = path.split('/').filter(|s| !s.is_empty());
+
+        let mut data = current_data.combine(&self.data);
 
         // Get the first segment of the path.
         let segment = match segments.next() {
@@ -139,15 +150,15 @@ impl Router {
 
         if let Some(resolver) = self.routes.get(segment) {
             match resolver {
-                PathResolver::Router(ref router) => router.resolve(&rest),
-                _ => Some(resolver),
+                PathResolver::Router(ref router) => router.resolve_internal(&rest, data),
+                _ => Some((resolver, data)),
             }
         } else {
             match self.fallback {
-                Some(PathResolver::Router(ref router)) => router.resolve(&rest),
+                Some(PathResolver::Router(ref router)) => router.resolve_internal(&rest, data),
                 Some(_) => {
                     if rest.is_empty() {
-                        self.fallback.as_ref()
+                        self.fallback.as_ref().map(|r| (r, data))
                     } else {
                         None
                     }
@@ -187,7 +198,7 @@ impl PartialEq for PathResolver {
 
 impl PathResolver {
     /// Returns new response based on the request
-    pub fn resolve(&self, request: &Request) -> Response {
+    pub fn resolve(&self, request: &Request, data: DataContainer) -> Response {
         match self {
             PathResolver::Placeholder(data) => Response::new().with_status(ResponseStatus::Ok).with_body(data.clone().into_bytes()),
             PathResolver::Pipeline(pipeline) => {
@@ -204,7 +215,7 @@ impl PathResolver {
                 let mut pipeline = pipeline.lock().unwrap();
 
                 // Resolve the pipeline
-                pipeline.handle(request.clone())
+                pipeline.handle(request.clone(), data)
             }
             _ => Response::new().with_status(ResponseStatus::InternalServerError),
         }
@@ -226,10 +237,10 @@ mod test {
         router.insert("/hello/:name", PathResolver::Placeholder("Hello Name".to_string()));
         router.insert("/hello/:name/:age", PathResolver::Placeholder("Hello Name Age".to_string()));
 
-        assert_eq!(router.resolve("/").unwrap(), &PathResolver::Placeholder("Root".to_string()));
-        assert_eq!(router.resolve("/hello/world").unwrap(), &PathResolver::Placeholder("Hello World".to_string()));
-        assert_eq!(router.resolve("/hello/world/test").unwrap(), &PathResolver::Placeholder("Hello World test".to_string()));
-        assert_eq!(router.resolve("/hello/John").unwrap(), &PathResolver::Placeholder("Hello Name".to_string()));
-        assert_eq!(router.resolve("/hello/John/20").unwrap(), &PathResolver::Placeholder("Hello Name Age".to_string()));
+        assert_eq!(router.resolve("/").unwrap().0, &PathResolver::Placeholder("Root".to_string()));
+        assert_eq!(router.resolve("/hello/world").unwrap().0, &PathResolver::Placeholder("Hello World".to_string()));
+        assert_eq!(router.resolve("/hello/world/test").unwrap().0, &PathResolver::Placeholder("Hello World test".to_string()));
+        assert_eq!(router.resolve("/hello/John").unwrap().0, &PathResolver::Placeholder("Hello Name".to_string()));
+        assert_eq!(router.resolve("/hello/John/20").unwrap().0, &PathResolver::Placeholder("Hello Name Age".to_string()));
     }
 }

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, any::{TypeId, Any}, sync::Arc, fmt::Debug};
 
-use crate::server::{request::Request, response::Response};
+use crate::{server::{request::Request, response::Response}, utils::data_container::DataContainer};
 
 use super::controller::{Controller, IntoController};
 
@@ -32,8 +32,8 @@ impl RequestPipeline {
         Self::new(Box::new(controller.into_controller()))
     }
 
-    pub fn handle(&mut self, request: Request) -> Response {
-        let pipeline = PipelineData::new(request);
+    pub fn handle(&mut self, request: Request, data: DataContainer) -> Response {
+        let pipeline = PipelineData::new(request, data);
 
         self.controller.handle(&pipeline)
     }
@@ -42,14 +42,14 @@ impl RequestPipeline {
 pub struct PipelineData {
     pub request: Request,
     
-    pub data: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
+    pub(crate) data: DataContainer,
 }
 
 impl PipelineData {
-    pub fn new(request: Request) -> Self {
+    pub fn new(request: Request, initial_data: DataContainer) -> Self {
         Self {
             request,
-            data: HashMap::new(),
+            data: initial_data,
         }
     }
 }

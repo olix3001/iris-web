@@ -1,4 +1,4 @@
-use std::{sync::Arc, any::{TypeId, Any}};
+use std::{sync::Arc, any::{TypeId, Any}, fmt::Debug};
 
 use crate::server::{response::{IntoResponse, Response}, request::Request};
 
@@ -37,16 +37,31 @@ pub struct Data<'a, T: 'static> {
     marker: std::marker::PhantomData<&'a T>,
 }
 
-impl<'a, T: 'static> ControllerParam for Data<'a, T> {
+impl<'a, T: 'static> Data<'a, T> {
+    pub fn get_type_id(&self) -> TypeId {
+        TypeId::of::<T>()
+    }
+    pub fn get_type_name(&self) -> &'static str {
+        std::any::type_name::<T>()
+    }
+}
+
+impl<'a, T: Debug> Debug for Data<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.data.fmt(f)
+    }
+}
+
+impl<'a, T: Send + Sync + 'static> ControllerParam for Data<'a, T> {
     type Item<'new> = Data<'new, T>;
 
     fn fetch<'r>(pipeline: &'r PipelineData) -> Option<Self::Item<'r>> {
-        let data = pipeline.data.get(&TypeId::of::<Arc<T>>()).and_then(|data| data.downcast_ref::<Arc<dyn Any + Send + Sync>>());
+        let data = pipeline.data.get::<T>();
 
-        match data {
-            Some(data) => Some(Data { data: data.downcast_ref::<Arc<T>>().unwrap().clone(), marker: Default::default() }),
-            None => None
-        }
+        data.map(|data| Data {
+            data: data.clone(),
+            marker: std::marker::PhantomData,
+        })
     }
 }
 
