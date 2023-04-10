@@ -17,6 +17,7 @@ pub enum ResponseStatus {
     NotFound,
     BadRequest,
     InternalServerError,
+    MethodNotAllowed,
     Custom(String)
 }
 
@@ -28,6 +29,7 @@ impl ResponseStatus {
             ResponseStatus::NotFound => "404 Not Found".to_string(),
             ResponseStatus::BadRequest => "400 Bad Request".to_string(),
             ResponseStatus::InternalServerError => "500 Internal Server Error".to_string(),
+            ResponseStatus::MethodNotAllowed => "405 Method Not Allowed".to_string(),
             ResponseStatus::Custom(s) => s.to_string(),
             _ => "500 Internal Server Error".to_string(),
         }

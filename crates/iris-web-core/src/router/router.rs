@@ -2,6 +2,8 @@ use std::{collections::HashMap, sync::Mutex};
 
 use crate::{server::{request::Request, response::{Response, ResponseStatus}}, pipeline::pipeline::RequestPipeline};
 
+use super::Method;
+
 /// A router is a collection of routes that can be used to match a path.
 pub struct Router {
     /// The routes that are registered with this router.
@@ -19,15 +21,34 @@ impl Router {
         }
     }
 
-    pub fn add_pipeline(&mut self, path: &str, pipeline: RequestPipeline) {
-        self.insert(path, PathResolver::Pipeline(Mutex::new(pipeline)));
+    pub fn add_pipeline(&mut self, path: &str, method: Method, pipeline: RequestPipeline) {
+        // Get the resolver or create a new one.
+        let resolver = match self.routes.get_mut(path) {
+            Some(resolver) => resolver,
+            None => {
+                let mut pipeline_map = HashMap::new();
+                pipeline_map.insert(method.as_str(), Mutex::new(pipeline));
+                self.insert(path, PathResolver::Pipeline(pipeline_map));
+                return;
+            }
+        };
+
+        // Add the pipeline to the resolver.
+        match resolver {
+            PathResolver::Pipeline(pipelines) => {
+                pipelines.insert(method.as_str(), Mutex::new(pipeline));
+            }
+            _ => {}
+        }
+
+        println!("{:#?}", self);
     }
 
     /// Inserts a new route into the router creating sub-routers as needed.
     /// :id can be used like a placeholder to match any path segment.
     pub fn insert(&mut self, path: &str, resolver: PathResolver) {
         // Special case for root path.
-        if path == "/" {
+        if path.trim() == "/" {
             self.routes.insert("".to_string(), resolver);
             return;
         }
@@ -124,7 +145,13 @@ impl Router {
         } else {
             match self.fallback {
                 Some(PathResolver::Router(ref router)) => router.resolve(&rest),
-                Some(_) => self.fallback.as_ref(),
+                Some(_) => {
+                    if rest.is_empty() {
+                        self.fallback.as_ref()
+                    } else {
+                        None
+                    }
+                }
                 None => None,
             }
         }
@@ -146,7 +173,7 @@ impl std::fmt::Debug for Router {
 pub enum PathResolver {
     Router(Box<Router>),
     Placeholder(String),
-    Pipeline(Mutex<RequestPipeline>)
+    Pipeline(HashMap<String, Mutex<RequestPipeline>>)
 }
 
 impl PartialEq for PathResolver {
@@ -163,7 +190,22 @@ impl PathResolver {
     pub fn resolve(&self, request: &Request) -> Response {
         match self {
             PathResolver::Placeholder(data) => Response::new().with_status(ResponseStatus::Ok).with_body(data.clone().into_bytes()),
-            PathResolver::Pipeline(pipeline) => pipeline.lock().unwrap().handle(request.clone()),
+            PathResolver::Pipeline(pipeline) => {
+                // Get the method
+                let method = &request.method;
+
+                // Get the pipeline
+                let pipeline = match pipeline.get(method) {
+                    Some(pipeline) => pipeline,
+                    None => return Response::new().with_status(ResponseStatus::MethodNotAllowed)
+                };
+
+                // Get the pipeline
+                let mut pipeline = pipeline.lock().unwrap();
+
+                // Resolve the pipeline
+                pipeline.handle(request.clone())
+            }
             _ => Response::new().with_status(ResponseStatus::InternalServerError),
         }
     }

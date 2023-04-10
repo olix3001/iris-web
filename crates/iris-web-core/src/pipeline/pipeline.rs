@@ -53,3 +53,15 @@ impl PipelineData {
         }
     }
 }
+
+pub trait IntoPipeline<M> {
+    fn into_pipeline(self) -> RequestPipeline;
+}
+
+impl<T, I, C: Controller + Send + Sync + 'static> IntoPipeline<(I, C)> for T
+    where T: IntoController<I, Controller = C>
+{
+    fn into_pipeline(self) -> RequestPipeline {
+        RequestPipeline::controller(self)
+    }
+}
