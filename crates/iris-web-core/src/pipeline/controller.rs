@@ -10,8 +10,8 @@ pub trait Controller {
 }
 
 /// Parameter which can be used in a controller.
-pub trait ControllerParam: Clone {
-    type Item<'new> where Self: Clone;
+pub trait ControllerParam {
+    type Item<'new>;
 
     fn fetch<'r>(pipeline: &'r PipelineData) -> Option<Self::Item<'r>>;
 }

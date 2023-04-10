@@ -18,6 +18,7 @@ pub enum ResponseStatus {
     BadRequest,
     InternalServerError,
     MethodNotAllowed,
+    InvalidRequest,
     Custom(String)
 }
 
@@ -30,6 +31,7 @@ impl ResponseStatus {
             ResponseStatus::BadRequest => "400 Bad Request".to_string(),
             ResponseStatus::InternalServerError => "500 Internal Server Error".to_string(),
             ResponseStatus::MethodNotAllowed => "405 Method Not Allowed".to_string(),
+            ResponseStatus::InvalidRequest => "400 Bad Request".to_string(),
             ResponseStatus::Custom(s) => s.to_string(),
 
             #[allow(unreachable_patterns)] // For future proofing
@@ -58,8 +60,8 @@ impl Response {
         self
     }
 
-    pub fn with_body(mut self, body: Vec<u8>) -> Self {
-        self.body = body;
+    pub fn with_body(mut self, body: impl IntoResponseBody) -> Self {
+        self.body = body.into_response_body();
         self
     }
 
@@ -119,26 +121,8 @@ pub trait IntoResponseBody {
     fn into_response_body(self) -> Vec<u8>;
 }
 
-impl IntoResponseBody for () {
+impl<T> IntoResponseBody for T where T: serde::Serialize {
     fn into_response_body(self) -> Vec<u8> {
-        Vec::new()
-    }
-}
-
-impl IntoResponseBody for String {
-    fn into_response_body(self) -> Vec<u8> {
-        self.into_bytes()
-    }
-}
-
-impl IntoResponseBody for Vec<u8> {
-    fn into_response_body(self) -> Vec<u8> {
-        self
-    }
-}
-
-impl IntoResponseBody for &'static str {
-    fn into_response_body(self) -> Vec<u8> {
-        self.to_string().into_response_body()
+        serde_json::to_vec(&self).unwrap()
     }
 }

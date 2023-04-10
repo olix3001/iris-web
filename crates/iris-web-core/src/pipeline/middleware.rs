@@ -1,8 +1,9 @@
 use super::request_pipeline::PipelineData;
 use crate::pipeline::controller::ControllerParam;
+use crate::server::response::{IntoResponse, Response};
 
 pub trait MiddlewareHandler {
-    fn handle(&mut self, data: &mut PipelineData);
+    fn handle(&mut self, data: &mut PipelineData) -> Option<Response>;
 }
 
 pub(crate) type BoxedMiddlewareHandler = Box<dyn MiddlewareHandler + Send + Sync>;
@@ -29,29 +30,27 @@ impl<Input, F> FunctionMiddleware<Input, F> {
 
 #[allow(non_snake_case, unused)]
 #[doc(hidden)]
-impl<F> MiddlewareHandler for FunctionMiddleware<&mut PipelineData, F>
+impl<R: IntoResponse, F> MiddlewareHandler for FunctionMiddleware<&mut PipelineData, F>
 where
-    for<'a, 'b> &'a mut F: FnMut(&'b mut PipelineData),
+    for<'a, 'b> &'a mut F: FnMut(&'b mut PipelineData) -> Option<R>,
 {
-    fn handle(&mut self, pipeline: &mut PipelineData) {
+    fn handle(&mut self, pipeline: &mut PipelineData) -> Option<Response> {
         // Without this rustc complains without reason
-        fn call_inner<F>(mut f: impl FnMut(&mut PipelineData), pipeline: &mut PipelineData)
-            where
-                for<'a, 'b> &'a mut F: FnMut(&'b mut PipelineData)
+        fn call_inner<R: IntoResponse>(mut f: impl FnMut(&mut PipelineData) -> Option<R>, pipeline: &mut PipelineData) -> Option<R> 
         {
             f(pipeline)
         }
 
         // Call the function
-        call_inner(&mut self.f, pipeline)
+        call_inner(&mut self.f, pipeline).map(|r| r.into_response())
     }
 }
 
 #[allow(non_snake_case, unused)]
 #[doc(hidden)]
-impl<'c, F> IntoMiddleware<&'c mut PipelineData> for F
+impl<'c, F, R: IntoResponse> IntoMiddleware<&'c mut PipelineData> for F
 where
-    for<'a, 'b> &'a mut F: FnMut(&'b mut PipelineData),
+    for<'a, 'b> &'a mut F: FnMut(&'b mut PipelineData) -> Option<R>,
 {
     type Middleware = FunctionMiddleware<&'c mut PipelineData, F>;
 
@@ -65,19 +64,20 @@ macro_rules! impl_middleware {
         #[allow(non_snake_case, unused)]
         #[doc(hidden)]
         impl<
+            R: IntoResponse,
             F, $($param: ControllerParam),*
         > MiddlewareHandler for FunctionMiddleware<($($param,)*), F>
             where
                 for<'a, 'b> &'a mut F:
-                    FnMut( $($param),* ) +
-                    FnMut( $(<$param as ControllerParam>::Item<'b>),* )
+                    FnMut( $($param),* ) -> Option<R> +
+                    FnMut( $(<$param as ControllerParam>::Item<'b>),* ) -> Option<R>,
         {
-            fn handle(&mut self, pipeline: &mut PipelineData) {
+            fn handle(&mut self, pipeline: &mut PipelineData) -> Option<Response> {
                 // Without this rustc complains without reason
-                fn call_inner<$($param),*>(
-                    mut f: impl FnMut($($param),*),
+                fn call_inner<R: IntoResponse, $($param),*>(
+                    mut f: impl FnMut($($param),*) -> Option<R>,
                     $($param: $param),*
-                ) {
+                ) -> Option<R> {
                     f($($param),*)
                 }
 
@@ -87,7 +87,7 @@ macro_rules! impl_middleware {
                 )*
 
                 // Call the function
-                call_inner(&mut self.f, $($param),*)
+                call_inner(&mut self.f, $($param),*).map(|r| r.into_response())
             }
         }
     };
@@ -98,12 +98,13 @@ macro_rules! impl_into_middleware {
         #[allow(non_snake_case, unused)]
         #[doc(hidden)]
         impl<
+            R: IntoResponse,
             F, $($param: ControllerParam),*
         > IntoMiddleware<($($param,)*)> for F
             where
                 for<'a, 'b> &'a mut F:
-                    FnMut( $($param),* ) +
-                    FnMut( $(<$param as ControllerParam>::Item<'b>),* )
+                    FnMut( $($param),* ) -> Option<R> +
+                    FnMut( $(<$param as ControllerParam>::Item<'b>),* ) -> Option<R>,
         {
             type Middleware = FunctionMiddleware<($($param,)*), F>;
 

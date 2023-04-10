@@ -35,7 +35,12 @@ impl RequestPipeline {
         let mut pipeline = PipelineData::new(request, data);
 
         for middleware in &mut self.middlewares {
-            middleware.handle(&mut pipeline);
+            let r = middleware.handle(&mut pipeline);
+
+            // If the middleware returned a response, return it breaking the pipeline
+            if let Some(response) = r {
+                return response;
+            }
 
             // Execute all commands in the queue
             pipeline.command_queue.clone().execute(&mut pipeline);

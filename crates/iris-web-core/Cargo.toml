@@ -3,6 +3,19 @@ name = "iris-web-core"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+serde = { version = "1.0" }
+serde_json = { version = "1.0" }
+
+[profile.release]
+opt-level = 3
+lto = true
+debug = false
+debug-assertions = false
+codegen-units = 1
+panic = "abort"
+overflow-checks = true
+embed-bitcode = true

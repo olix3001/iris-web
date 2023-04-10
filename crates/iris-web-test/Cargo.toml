@@ -7,3 +7,15 @@ edition = "2021"
 
 [dependencies]
 iris-web-core = { path = "../iris-web-core" }
+iris-web-json = { path = "../iris-web-json" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+debug = false
+debug-assertions = false
+codegen-units = 1
+panic = "abort"
+overflow-checks = true
