@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Mutex};
 
-use crate::server::{request::Request, response::{Response, ResponseStatus}};
+use crate::{server::{request::Request, response::{Response, ResponseStatus}}, pipeline::pipeline::RequestPipeline};
 
 /// A router is a collection of routes that can be used to match a path.
 pub struct Router {
@@ -17,6 +17,10 @@ impl Router {
             routes: HashMap::new(),
             fallback: None,
         }
+    }
+
+    pub fn add_pipeline(&mut self, path: &str, pipeline: RequestPipeline) {
+        self.insert(path, PathResolver::Pipeline(Mutex::new(pipeline)));
     }
 
     /// Inserts a new route into the router creating sub-routers as needed.
@@ -115,12 +119,12 @@ impl Router {
         if let Some(resolver) = self.routes.get(segment) {
             match resolver {
                 PathResolver::Router(ref router) => router.resolve(&rest),
-                PathResolver::Placeholder(_) => Some(resolver),
+                _ => Some(resolver),
             }
         } else {
             match self.fallback {
                 Some(PathResolver::Router(ref router)) => router.resolve(&rest),
-                Some(PathResolver::Placeholder(_)) => self.fallback.as_ref(),
+                Some(_) => self.fallback.as_ref(),
                 None => None,
             }
         }
@@ -142,6 +146,7 @@ impl std::fmt::Debug for Router {
 pub enum PathResolver {
     Router(Box<Router>),
     Placeholder(String),
+    Pipeline(Mutex<RequestPipeline>)
 }
 
 impl PartialEq for PathResolver {
@@ -155,9 +160,10 @@ impl PartialEq for PathResolver {
 
 impl PathResolver {
     /// Returns new response based on the request
-    pub fn resolve(&self, _: &Request) -> Response {
+    pub fn resolve(&self, request: &Request) -> Response {
         match self {
             PathResolver::Placeholder(data) => Response::new().with_status(ResponseStatus::Ok).with_body(data.clone().into_bytes()),
+            PathResolver::Pipeline(pipeline) => pipeline.lock().unwrap().handle(request.clone()),
             _ => Response::new().with_status(ResponseStatus::InternalServerError),
         }
     }

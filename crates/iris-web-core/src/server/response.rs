@@ -3,6 +3,7 @@ use std::{collections::HashMap, io::Write};
 use super::request::Request;
 
 /// Struct that represents a response to a request.
+#[derive(Debug, Clone)]
 pub struct Response {
     pub status: ResponseStatus,
     pub headers: HashMap<String, String>,
@@ -10,6 +11,7 @@ pub struct Response {
 }
 
 /// The status of a response.
+#[derive(Debug, Clone)]
 pub enum ResponseStatus {
     Ok,
     NotFound,
@@ -58,8 +60,11 @@ impl Response {
     }
 
     #[doc(hidden)]
-    pub(crate) fn send_response(&self, request: &Request) -> std::io::Result<()> {
+    pub(crate) fn send_response(&mut self, request: &Request) -> std::io::Result<()> {
         let mut response = String::new();
+
+        // Set the content length
+        self.headers.insert("Content-Length".to_string(), self.body.len().to_string());
 
         // Add the status line
         response.push_str(&format!("{} {}\r\n", request.version, self.status.as_raw()));
@@ -82,5 +87,53 @@ impl Response {
         stream.shutdown(std::net::Shutdown::Both)?;
 
         Ok(())
+    }
+}
+
+pub trait IntoResponse {
+    fn into_response(self) -> Response;
+}
+
+impl IntoResponse for Response {
+    fn into_response(self) -> Response {
+        self
+    }
+}
+
+impl<T: IntoResponseBody> IntoResponse for T {
+    fn into_response(self) -> Response {
+        Response {
+            status: ResponseStatus::Ok,
+            headers: HashMap::new(),
+            body: self.into_response_body(),
+        }
+    }
+}
+
+pub trait IntoResponseBody {
+    fn into_response_body(self) -> Vec<u8>;
+}
+
+impl IntoResponseBody for () {
+    fn into_response_body(self) -> Vec<u8> {
+        Vec::new()
+    }
+}
+
+impl IntoResponseBody for String {
+    fn into_response_body(self) -> Vec<u8> {
+        self.into_bytes()
+    }
+}
+
+impl IntoResponseBody for Vec<u8> {
+    fn into_response_body(self) -> Vec<u8> {
+        self
+    }
+}
+
+impl IntoResponseBody for &'static str {
+    fn into_response_body(self) -> Vec<u8> {
+        self.to_string().into_response_body()
     }
 }
