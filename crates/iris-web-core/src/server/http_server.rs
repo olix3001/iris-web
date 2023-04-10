@@ -1,6 +1,6 @@
 use std::{net::TcpListener, sync::{Arc, RwLock}};
 
-use crate::{router::{router::{Router, Module}, Method}, utils::{thread_pool::ThreadPool, data_container::DataContainer}, server::{request::Request, response::Response}, pipeline::{pipeline::{IntoPipeline, RequestPipeline}, controller::{Controller, IntoController}}};
+use crate::{router::{router::{Router, Module}, Method}, utils::{thread_pool::ThreadPool}, server::{request::Request, response::Response}, pipeline::request_pipeline::IntoPipeline};
 
 pub type BindAddress<'a> = (&'a str, u16);
 
@@ -11,6 +11,12 @@ pub struct HttpServer {
 
     #[doc(hidden)]
     listener: Option<TcpListener>,
+}
+
+impl Default for HttpServer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HttpServer {
@@ -84,9 +90,6 @@ impl HttpServer {
 
                         match path_resolver {
                             Some((path_resolver, path_data)) => {
-                                println!("Resolver: {:?}", path_resolver);
-                                println!("Path data: {:?}", path_data);
-
                                 path_resolver.resolve(&request, path_data).send_response(&request).unwrap();
                             }
                             None => {
@@ -97,7 +100,7 @@ impl HttpServer {
                     });
                 }
                 Err(e) => {
-                    println!("Error: {}", e);
+                    println!("Error: {e}");
                 }
             }
         }

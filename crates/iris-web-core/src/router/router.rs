@@ -1,10 +1,11 @@
 use std::{collections::HashMap, sync::Mutex};
 
-use crate::{server::{request::Request, response::{Response, ResponseStatus}}, pipeline::pipeline::{RequestPipeline, IntoPipeline}, utils::data_container::DataContainer};
+use crate::{server::{request::Request, response::{Response, ResponseStatus}}, pipeline::request_pipeline::{RequestPipeline, IntoPipeline}, utils::data_container::DataContainer};
 
 use super::Method;
 
 /// A router is a collection of routes that can be used to match a path.
+#[derive(Default)]
 pub struct Router {
     /// The routes that are registered with this router.
     pub(crate) routes: HashMap<String, PathResolver>,
@@ -61,6 +62,7 @@ impl Router {
         };
 
         // Add the pipeline to the resolver.
+        #[allow(clippy::single_match)]
         match resolver {
             PathResolver::Pipeline(pipelines) => {
                 pipelines.insert(method.as_str(), Mutex::new(pipeline));
@@ -68,7 +70,8 @@ impl Router {
             _ => {}
         }
 
-        println!("{:#?}", self);
+        #[cfg(debug_assertions)]
+        println!("{self:#?}");
     }
 
     /// Inserts a new route into the router creating sub-routers as needed.
@@ -163,10 +166,7 @@ impl Router {
         let data = current_data.combine(&self.data);
 
         // Get the first segment of the path.
-        let segment = match segments.next() {
-            Some(segment) => segment,
-            None => "",
-        };
+        let segment = segments.next().unwrap_or("");
 
         // Get the rest of the path.
         let rest = segments.collect::<Vec<_>>().join("/");
@@ -246,7 +246,7 @@ impl PathResolver {
 }
 
 pub trait Module {
-    fn build(self, router: &mut Router) -> ();
+    fn build(self, router: &mut Router);
 }
 
 #[cfg(test)]

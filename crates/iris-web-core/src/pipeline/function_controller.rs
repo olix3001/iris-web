@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use crate::server::response::IntoResponse;
 use super::controller::{Controller, ControllerParam, IntoController};
-use super::pipeline::PipelineData;
+use super::request_pipeline::PipelineData;
 use crate::server::response::Response;
 
 /// Wrapper for a function that can be used as a controller.

@@ -11,7 +11,7 @@ fn router_test() -> String {
 struct TestRouter;
 
 impl Module for TestRouter {
-    fn build(self, router: &mut Router) -> () {
+    fn build(self, router: &mut Router) {
         router
             .add_route("/", Method::GET, router_test)
             .add_route("/test", Method::GET, || "Hello Test!".to_string());

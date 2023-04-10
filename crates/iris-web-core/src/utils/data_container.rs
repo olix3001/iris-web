@@ -1,17 +1,9 @@
 use std::{collections::HashMap, sync::Arc, any::{Any, TypeId}};
 
 /// Internal struct that holds data
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DataContainer {
     data: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
-}
-
-impl Default for DataContainer {
-    fn default() -> Self {
-        Self {
-            data: HashMap::new(),
-        }
-    }
 }
 
 impl DataContainer {

@@ -65,12 +65,13 @@ struct ThreadPoolWorker {
 impl ThreadPoolWorker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<ThreadPoolJob>>>) -> Self {
         let thread = std::thread::spawn(move || {
-            println!("Worker {} started.", id);
+            #[cfg(debug_assertions)]
+            println!("Worker {id} started.");
             loop {
                 let job = receiver.lock().unwrap().recv().unwrap();
 
                 #[cfg(debug_assertions)]
-                println!("Worker {} got a job; executing.", id);
+                println!("Worker {id} got a job; executing.");
 
                 job();
             }

@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::{Arc, Mutex}, net::TcpStream, io::{BufRead
 
 /// Struct representing a request to a server endpoint.
 /// This is used internally by Iris but can be used to inspect the request at lower levels.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Request {
     pub method: String,
     pub path: String,
@@ -12,19 +12,6 @@ pub struct Request {
 
     #[doc(hidden)]
     pub(crate) stream: Option<Arc<Mutex<TcpStream>>>,
-}
-
-impl Default for Request {
-    fn default() -> Self {
-        Self {
-            method: String::new(),
-            path: String::new(),
-            version: String::new(),
-            headers: HashMap::new(),
-            body: Vec::new(),
-            stream: None,
-        }
-    }
 }
 
 macro_rules! read_line {
@@ -80,7 +67,7 @@ impl Request {
         request.body = body;
 
         // Read the body from the buf_iter
-        println!("{:#?}", request);
+        println!("{request:#?}");
 
         request.stream = Some(Arc::new(Mutex::new(stream)));
         request

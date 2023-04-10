@@ -1,8 +1,8 @@
-use std::{sync::Arc, any::{TypeId, Any}, fmt::Debug};
+use std::{sync::Arc, any::TypeId, fmt::Debug};
 
-use crate::server::{response::{IntoResponse, Response}, request::Request};
+use crate::server::{response::{Response}, request::Request};
 
-use super::pipeline::PipelineData;
+use super::request_pipeline::PipelineData;
 
 /// A controller is a function that takes a request and returns a response.
 pub trait Controller {
@@ -59,7 +59,7 @@ impl<'a, T: Send + Sync + 'static> ControllerParam for Data<'a, T> {
         let data = pipeline.data.get::<T>();
 
         data.map(|data| Data {
-            data: data.clone(),
+            data,
             marker: std::marker::PhantomData,
         })
     }

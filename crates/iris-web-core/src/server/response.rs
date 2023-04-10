@@ -31,6 +31,8 @@ impl ResponseStatus {
             ResponseStatus::InternalServerError => "500 Internal Server Error".to_string(),
             ResponseStatus::MethodNotAllowed => "405 Method Not Allowed".to_string(),
             ResponseStatus::Custom(s) => s.to_string(),
+
+            #[allow(unreachable_patterns)] // For future proofing
             _ => "500 Internal Server Error".to_string(),
         }
     }
@@ -73,14 +75,15 @@ impl Response {
 
         // Add the headers
         for (key, value) in &self.headers {
-            response.push_str(&format!("{}: {}\r\n", key, value));
+            response.push_str(&format!("{key}: {value}\r\n"));
         }
 
         // Add the body
         response.push_str("\r\n");
         response.push_str(&String::from_utf8_lossy(&self.body));
 
-        println!("Response: {}", response);
+        #[cfg(debug_assertions)]
+        println!("Response: {response}");
 
         // Send the response
         let mut stream = request.stream.as_ref().unwrap().lock().unwrap();
