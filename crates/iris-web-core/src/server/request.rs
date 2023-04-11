@@ -8,6 +8,7 @@ pub struct Request {
     pub path: String,
     pub version: String,
     pub headers: HashMap<String, String>,
+    pub query_params: HashMap<String, String>,
     pub body: Vec<u8>,
 
     #[doc(hidden)]
@@ -35,6 +36,22 @@ impl Request {
         request.method = first_line_split[0].to_string();
         request.path = first_line_split[1].to_string();
         request.version = first_line_split[2].trim().to_string();
+
+        // Parse the query params
+        if request.path.contains('?') {
+            let path_split: Vec<_> = request.path.split('?').map(|s| s.to_string()).collect();
+            request.path = path_split[0].to_string();
+
+            let query_params = path_split[1].clone();
+            let query_params_split: Vec<_> = query_params.split('&').collect();
+            for query_param in query_params_split {
+                let query_param_split: Vec<_> = query_param.split('=').collect();
+                request.query_params.insert(
+                    query_param_split[0].to_string(),
+                    query_param_split[1].to_string(),
+                );
+            }
+        }
 
         // Ensure no / at the end of the path
         if request.path.ends_with('/') {

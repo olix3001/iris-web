@@ -1,11 +1,11 @@
 use std::sync::atomic::AtomicU32;
 
-use iris_web_core::{prelude::*, pipeline::{request_pipeline::PipelineData, controller::ConfigurableController}, server::request::Request};
+use iris_web_core::{prelude::*, pipeline::{request_pipeline::PipelineData, controller::ConfigurableController}, server::{request::Request, response::{Response, IntoResponseBody, ResponseStatus, UnserializedBody}}};
 use iris_web_json::json_body::json_body;
 use serde::{Deserialize, Serialize};
 
-fn test() -> String {
-    "Hello World!".to_string()
+fn test(req: &Request) -> UnserializedBody {
+    UnserializedBody(format!("{:#?}", req).as_bytes().to_vec())
 }
 
 fn router_test(data: Data<String>) -> String {

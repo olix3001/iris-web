@@ -107,6 +107,14 @@ impl IntoResponse for Response {
     }
 }
 
+pub struct UnserializedBody(pub Vec<u8>);
+
+impl IntoResponseBody for UnserializedBody {
+    fn into_response_body(self) -> Vec<u8> {
+        self.0
+    }
+}
+
 impl<T: IntoResponseBody> IntoResponse for T {
     fn into_response(self) -> Response {
         Response {
