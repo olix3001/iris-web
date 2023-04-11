@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 
-use iris_web_core::{pipeline::request_pipeline::PipelineData, server::response::{Response, ResponseStatus, IntoResponse, IntoResponseBody}};
-use serde::Serialize;
+use iris_web_core::{pipeline::request_pipeline::PipelineData, server::response::{Response, ResponseStatus}};
 
 /// Middleware to parse the request body as JSON.
 pub fn raw_json_body(pipeline: &mut PipelineData) -> Option<Response> {

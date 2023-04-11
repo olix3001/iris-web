@@ -107,6 +107,7 @@ impl IntoResponse for Response {
     }
 }
 
+/// By default, Iris will serialize the body to JSON, but if you want to send a raw body, you can use this.
 pub struct UnserializedBody(pub Vec<u8>);
 
 impl IntoResponseBody for UnserializedBody {

@@ -1,3 +1,5 @@
+use std::{collections::HashMap, sync::Mutex, fmt::Debug};
+
 #[allow(clippy::module_inception)]
 pub mod router;
 
@@ -26,5 +28,38 @@ impl Method {
             Method::CONNECT => "CONNECT".to_string(),
             Method::TRACE => "TRACE".to_string(),
         }
+    }
+}
+
+pub struct PathParams {
+    #[doc(hidden)]
+    pub params: Mutex<HashMap<String, String>>,
+}
+
+impl Debug for PathParams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PathParams")
+            .field("params", &self.params.lock().unwrap())
+            .finish()
+    }
+}
+
+impl PathParams {
+    pub(crate) fn new() -> Self {
+        Self {
+            params: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub(crate) fn add_param(&self, key: String, value: String) {
+        self.params.lock().unwrap().insert(key, value);
+    }
+
+    pub fn get_param(&self, key: &str) -> Option<String> {
+        self.params.lock().unwrap().get(key).cloned()
+    }
+
+    pub fn get_params(&self) -> HashMap<String, String> {
+        self.params.lock().unwrap().clone()
     }
 }

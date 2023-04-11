@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Mutex};
 
 use crate::{server::{request::Request, response::{Response, ResponseStatus}}, pipeline::request_pipeline::{RequestPipeline, IntoPipeline}, utils::data_container::DataContainer};
 
-use super::Method;
+use super::{Method, PathParams};
 
 /// A router is a collection of routes that can be used to match a path.
 #[derive(Default)]
@@ -11,6 +11,7 @@ pub struct Router {
     pub(crate) routes: HashMap<String, PathResolver>,
     /// The fallback route that is used when no other route matches.
     pub(crate) fallback: Option<PathResolver>,
+    pub(crate) fallback_name: Option<String>,
 
     /// Data that is shared between all routes in this router.
     pub(crate) data: DataContainer,
@@ -22,6 +23,7 @@ impl Router {
         Self {
             routes: HashMap::new(),
             fallback: None,
+            fallback_name: None,
             data: DataContainer::default(),
         }
     }
@@ -100,6 +102,7 @@ impl Router {
             if segment.starts_with(':') {
                 // Insert as fallback.
                 self.fallback = Some(resolver);
+                self.fallback_name = Some(segment.strip_prefix(':').unwrap().to_string());
             } else {
                 self.routes.insert(segment.to_string(), resolver);
             }
@@ -117,12 +120,14 @@ impl Router {
                     router.routes.insert("".to_string(), self.fallback.take().unwrap());
                     router.insert(&rest, resolver);
                     self.fallback = Some(PathResolver::Router(Box::new(router)));
+                    self.fallback_name = Some(segment.strip_prefix(':').unwrap().to_string());
                 }
                 None => {
                     // Create a new router.
                     let mut router = Router::new();
                     router.insert(&rest, resolver);
                     self.fallback = Some(PathResolver::Router(Box::new(router)));
+                    self.fallback_name = Some(segment.strip_prefix(':').unwrap().to_string());
                 }
             }
         } else {
@@ -158,12 +163,23 @@ impl Router {
     pub fn resolve(&self, path: &str) -> Option<(&PathResolver, DataContainer)> {
         self.resolve_internal(path, DataContainer::default())
     } 
+
+    #[doc(hidden)]
+    fn add_path_param(&self, param: &str, value: &str, data: &mut DataContainer) {
+        if let Some(params) = data.get::<PathParams>() {
+            params.add_param(param.to_string(), value.to_string())
+        } else {
+            let params = PathParams::new();
+            params.add_param(param.to_string(), value.to_string());
+            data.add(params);
+        }
+    }
     
     #[doc(hidden)]
     fn resolve_internal(&self, path: &str, current_data: DataContainer) -> Option<(&PathResolver, DataContainer)> {
         let mut segments = path.split('/').filter(|s| !s.is_empty());
 
-        let data = current_data.combine(&self.data);
+        let mut data = current_data.combine(&self.data);
 
         // Get the first segment of the path.
         let segment = segments.next().unwrap_or("");
@@ -177,6 +193,11 @@ impl Router {
                 _ => Some((resolver, data)),
             }
         } else {
+            if self.fallback.is_some() && self.fallback_name.is_some() {
+                // Insert the segment as a path param.
+                self.add_path_param(self.fallback_name.as_ref().unwrap(), segment, &mut data);
+            }
+
             match self.fallback {
                 Some(PathResolver::Router(ref router)) => router.resolve_internal(&rest, data),
                 Some(_) => {

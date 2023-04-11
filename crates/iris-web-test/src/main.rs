@@ -1,6 +1,6 @@
 use std::sync::atomic::AtomicU32;
 
-use iris_web_core::{prelude::*, pipeline::{request_pipeline::PipelineData, controller::ConfigurableController}, server::{request::Request, response::{Response, IntoResponseBody, ResponseStatus, UnserializedBody}}};
+use iris_web_core::prelude::*;
 use iris_web_json::json_body::json_body;
 use serde::{Deserialize, Serialize};
 
@@ -12,9 +12,9 @@ fn router_test(data: Data<String>) -> String {
     format!("Data from middleware: {}", data.data)
 }
 
-fn router_test_count(counter: Data<Counter>) -> String {
+fn router_test_count(counter: Data<Counter>, path_params: Data<PathParams>) -> String {
     let value = counter.count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    format!("Counter: {}", value)
+    format!("Counter: {} ; Params: {:?}", value, path_params)
 }
 
 fn middleware_test(data: &mut PipelineData) -> Option<()> {
